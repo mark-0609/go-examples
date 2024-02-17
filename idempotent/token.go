@@ -43,8 +43,8 @@ func Idempotent(token string) string {
 var redisClient *redis.Client
 
 const (
-	Addr     = "114.132.210.241:36379"
-	Password = "G62m50oigInC30sf"
+	Addr     = ""
+	Password = ""
 	DB       = 1
 )
 
