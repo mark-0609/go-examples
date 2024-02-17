@@ -3,41 +3,84 @@ package idempotent
 import (
 	"testing"
 	"time"
+
+	"github.com/go-redis/redis"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestIdempotent(t *testing.T) {
-	// Test case for normal execution within the timeout
-	t.Run("NormalExecution", func(t *testing.T) {
-		token := GenerateToken()
-		result := Idempotent(token)
-		if result != token {
-			t.Errorf("Expected %s, got %s", token, result)
-		}
-		t.Errorf("Expected %s, got %s", token, result)
+// MockRedisClient is a mock implementation of the Redis client.
+type MockRedisClient struct {
+	data map[string]string
+}
+
+func (m *MockRedisClient) Get(key string) *redis.StringCmd {
+	val, _ := m.data[key]
+	return redis.NewStringResult(val, redis.Nil)
+}
+
+func (m *MockRedisClient) SetNX(key string, value interface{}, expiration time.Duration) *redis.BoolCmd {
+	_, exists := m.data[key]
+	m.data[key] = value.(string)
+	return redis.NewBoolResult(!exists, nil)
+}
+
+func TestProcessRequest(t *testing.T) {
+	// Mock the Redis client
+	mockRedisClient := &MockRedisClient{
+		data: make(map[string]string),
+	}
+	// redisClient = mockRedisClient // Set the global redisClient variable to use the mock
+
+	// Test case for an existing result in Redis
+	t.Run("ExistingResultInRedis", func(t *testing.T) {
+		// Set up initial data in Redis
+		requestID := "existing_request"
+		expectedResult := "Existing result in Redis"
+		mockRedisClient.data[requestID] = expectedResult
+
+		// Call the function
+		result, err := ProcessRequest(requestID)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.Equal(t, expectedResult, result)
 	})
 
-	// Test case for timeout scenario
-	t.Run("TimeoutScenario", func(t *testing.T) {
-		// Mock RedisSetnXToken to always return an error
-		// You may need to adapt this depending on your actual implementation
-		// RedisSetnXToken1 = func(token string) error {
-		// 	return fmt.Errorf("mocked redis error")
+	// Test case for processing a new request
+	t.Run("NewRequestProcessing", func(t *testing.T) {
+		// Set up test data
+		requestID := GenerateToken()
+
+		// Call the function
+		result, err := ProcessRequest(requestID)
+
+		// Assertions
+		assert.NoError(t, err)
+		assert.Equal(t, "success result", result)
+		assert.Equal(t, "success result", mockRedisClient.data[requestID])
+	})
+
+	// Test case for timeout during processing
+	t.Run("TimeoutDuringProcessing", func(t *testing.T) {
+		// Set up test data
+		requestID := GenerateToken()
+
+		// Mock the Work function to simulate a timeout
+		// originalWork := Work
+		// Work = func(requestID string) (string, error) {
+		// 	time.Sleep(time.Second * 3)
+		// 	return "", errors.New("timeout")
 		// }
+		// defer func() {
+		// 	// Restore the original Work function
+		// 	Work = originalWork
+		// }()
 
-		startTime := time.Now()
-		result := Idempotent(GenerateToken())
-		elapsedTime := time.Since(startTime)
+		// Call the function
+		result, err := ProcessRequest(requestID)
 
-		// Assuming timeout is set to 2 seconds in the function
-		expectedErrorMessage := "TimeOutToken"
-		expectedMaxElapsedTime := 3 * time.Second
-
-		if result != expectedErrorMessage {
-			t.Errorf("Expected %s, got %s", expectedErrorMessage, result)
-		}
-
-		if elapsedTime > expectedMaxElapsedTime {
-			t.Errorf("Expected execution time to be less than %s, but it took %s", expectedMaxElapsedTime, elapsedTime)
-		}
+		// Assertions
+		assert.Error(t, err)
+		assert.Equal(t, "", result)
 	})
 }
