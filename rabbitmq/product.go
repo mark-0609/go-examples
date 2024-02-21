@@ -1,26 +1,21 @@
-package main
+package rabbitmq
 
 import (
 	"fmt"
-	"time"
-
-	"github.com/mark-0609/go-examples/rabbitmq"
 )
 
-func main() {
+func Product() {
 
-	ch, conn := rabbitmq.CreateConnAndChannel()
-	defer conn.Close()
+	ch, _ := CreateConnAndChannel()
+	// defer conn.Close()
 	defer ch.Close()
 
-	ch.DeclareQueueAndExchange()
-
-	// 生产者
+	DeclareQueueAndExchange(ch)
 	go func() {
-		for {
-			body := []byte(fmt.Sprintf("Hello, RabbitMQ! - %d", time.Now().Unix()))
-			rabbitmq.PublishMessageWithConfirm(ch, body)
-			time.Sleep(1 * time.Second)
+		for i := 0; i < 4000; i++ {
+			body := []byte(fmt.Sprintf("RabbitMQ! - %d", i))
+			PublishMessageWithConfirm(ch, body, func() {}, func() {})
+			// time.Sleep(600 * time.Millisecond)
 		}
 	}()
 }

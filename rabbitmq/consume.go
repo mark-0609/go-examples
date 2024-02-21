@@ -1,18 +1,17 @@
-package main
+package rabbitmq
 
 import (
 	"fmt"
-
-	"github.com/mark-0609/go-examples/rabbitmq"
 )
 
-func main() {
+func Consume() {
 	fmt.Println("Consume Start....")
 
-	ch, conn := rabbitmq.CreateConnAndChannel()
+	ch, conn := CreateConnAndChannel()
 	defer conn.Close()
 	defer ch.Close()
 
-	ch.DeclareQueueAndExchange()
-	go rabbitmq.ConsumeMessagesWithAck(ch)
+	// DeclareQueueAndExchange(ch)
+	ConsumeMessagesWithAck(ch)
+	select {}
 }

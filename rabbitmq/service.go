@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"log"
+	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -15,7 +16,7 @@ const (
 
 func failOnError(err error, msg string) {
 	if err != nil {
-		log.Fatalf("%s: %s", msg, err)
+		log.Fatalf("%s: `%s`", msg, err)
 	}
 }
 
@@ -31,11 +32,11 @@ func DeclareQueueAndExchange(ch *amqp.Channel) {
 	err := ch.ExchangeDeclare(
 		exchangeName,
 		amqp.ExchangeFanout,
-		true,
-		false,
-		false,
-		false,
-		nil,
+		true,  // durable
+		false, // autoDelete
+		false, // internal
+		false, // noWait
+		nil,   //amqp.Table{"alternate-exchange": "my-backup-exchange"}, // 设置备份交换机
 	)
 	failOnError(err, "Failed to declare exchange")
 
@@ -59,11 +60,11 @@ func DeclareQueueAndExchange(ch *amqp.Channel) {
 	failOnError(err, "Failed to bind queue to exchange")
 }
 
-func PublishMessageWithConfirm(ch *amqp.Channel, body []byte) {
+func PublishMessageWithConfirm(ch *amqp.Channel, body []byte, retry, timeout func()) {
 	err := ch.Confirm(false)
 	failOnError(err, "Failed to enable publisher confirms")
 
-	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 10000))
 
 	err = ch.Publish(
 		exchangeName,
@@ -77,17 +78,19 @@ func PublishMessageWithConfirm(ch *amqp.Channel, body []byte) {
 		},
 	)
 	failOnError(err, "Failed to publish a message")
-
 	select {
 	case confirm := <-confirms:
 		if !confirm.Ack {
 			log.Printf("Failed delivery of message with body %s", body)
 			// 可以在这里实现重试逻辑
+			retry()
 		}
-		// case <-time.After(15 * time.Second):
-		// 	log.Println("Timed out waiting for confirmation")
+	case <-time.After(3 * time.Second):
+		log.Println("Timed out waiting for confirmation", err)
 		// 可以在这里实现超时后的处理逻辑
+		timeout()
 	}
+	log.Println("end...", string(body))
 }
 
 func ConsumeMessagesWithAck(ch *amqp.Channel) {
@@ -102,7 +105,7 @@ func ConsumeMessagesWithAck(ch *amqp.Channel) {
 	)
 	failOnError(err, "Failed to register a consumer")
 
-	forever := make(chan bool)
+	forever := make(chan bool, 4)
 
 	go func() {
 		for d := range msgs {
@@ -114,6 +117,8 @@ func ConsumeMessagesWithAck(ch *amqp.Channel) {
 			} else {
 				log.Printf("Error processing message: %v", err)
 				// 可以在这里实现错误处理和重试逻辑
+				// 处理消息失败时，重新发布消息到队列
+				d.Nack(false, true)
 			}
 		}
 	}()
