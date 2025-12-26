@@ -1,12 +1,14 @@
 module go-examples
 
-go 1.20
+go 1.21
 
 require (
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/google/uuid v1.6.0
+	github.com/jinzhu/copier v0.4.0
 	github.com/streadway/amqp v1.1.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.11.1
+	github.com/zeromicro/go-zero v1.9.4
 )
 
 require (
