@@ -28,12 +28,14 @@ func DemoMapReduce() {
 		// 模拟耗时操作
 		// time.Sleep(time.Millisecond * 10)
 		writer.Write(item * item)
+		fmt.Printf("Mapper processed: %d\n", item)
 	}, func(pipe <-chan int, writer mr.Writer[int], cancel func(error)) {
 		var sum int
 		for v := range pipe {
 			sum += v
 		}
-		writer.Write(sum)
+		fmt.Printf("Reducer aggregated: %d\n", sum)
+		writer.Write(1)
 	})
 
 	if err != nil {
